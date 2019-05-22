@@ -72,8 +72,21 @@ population_list = c(
   'Willow_Flowage-11-00167',
   'WolfR_17-03648'
   )
-
-pdf(file="I:\\WAE_RAD_Data\\STACKS_publish\\phase2-pop_Gen\\SNPS\\gg_dudi_PCA_individual_pops.pdf",width = 14,height = 10)
+#This variable contains a custom palette of colors to use for plots. Will likely be customize to your figure.
+pca_palette = c("#00cc99","#996600","#0000FF",
+         "#FF9900","#0000FF","#ffcc00",
+         "#000000","#0000FF","#0000FF",
+         "#0000FF","#000000","#000000",
+         "#9933FF","#9933FF","#666666",
+         "#9933FF","#9933FF","#00cc99",
+         "#00cc99","#00cc99","#00cc99",
+         "#00cc99","#00cc99")
+```
+#Individual PCAs for every population
+```{r}
+#This section will allow you to produce individual PCAs for every population included in the whitelist. 
+#Nice for QAQC
+pdf(file="I:/WAE_RAD_Data/Pop_gen_analyses_dev/quick_PCA_scripts/gg_dudi_PCA_individual_pops.pdf",width = 14,height = 10)
 par(mfrow = c(1,1))
 for (Q in population_list) {
   
@@ -110,14 +123,14 @@ for (Q in population_list) {
     #add group specific metadata
     group_dat = c(group_dat, tmp)
     #repeat with unique colors if I want to plot with my own
-    color_dat = c(color_dat, rep(unique(palette_pca_wichip2)[i], times = samp_size_sub[i]))
+    color_dat = c(color_dat, rep(unique(pca_palette)[i], times = samp_size_sub[i]))
     lab_YN = c(lab_YN, rep(c(1,2), times = c(1,(samp_size_sub[i]-1))))
     
   }
   
   group_dat = gsub("\\d+","",group_dat)
   group_dat = gsub("-","",group_dat)
-  levels(pca_2_ggplot$group_dat)
+  #levels(pca_2_ggplot$group_dat)
   up_chips = c("Chippewa_Flowage","Eau_Claire_River",
                "Manitowish_Lake","Turtle_Flambeau_Flowage")
   up_wiscs = c("Lake_Wisconsin_","Big_Arbor_Vitae",
@@ -166,3 +179,94 @@ dev.off()
 showmekittens()
 
 ```
+
+```{r}
+#Use whitelist to subset populations we want to plot  
+snps_subset = snps[which(snps$pop %in% population_list)]
+#Compute scaled allele frequencies, setting NA values equal to mean
+snps_scaled = scaleGen(snps_subset,NA.method="mean")
+#Perform principal component analysis
+pca_dat = dudi.pca(snps_scaled,cent=FALSE,scale=FALSE,scannf=FALSE,nf=4)
+#Extract eigenvectors to plot
+eigenvects_to_plot=pca_dat$li
+#Calculate % variance explained by each axis. Encapsulate these as variables to use in plot labels
+variance_explained=(pca_dat$eig)/sum(pca_dat$eig)
+xlabel=paste("PC1"," ",round(variance_explained[1],3)*100,"% of variance",sep="")
+ylabel=paste("PC2"," ",round(variance_explained[2],3)*100,"% of variance",sep="")
+#Calculate sample size for each population. 
+samp_size_sub = NULL
+for (i in unique(snps_subset@pop)) {
+  print(i)
+  print(length(which(snps_subset@pop == i)))
+  samp_size_sub = c(samp_size_sub,length(which(snps_subset@pop == i)))
+}
+#Encapsulate population names
+pop_namez_sub=levels(snps_subset@pop)
+  
+#This next section builds a data frame of meta data to append to the eigenvectors for labeling purposes
+#it includes:
+#   Pop IDs for each individual
+#   Color codes (hexidecimal) for each point, 1 distinct color per pop
+#   A toggle indicating if the population data should be annotated on the plot, this is appended to only the first individual so we can still see our plot
+group_dat = NULL
+color_dat = NULL
+lab_YN = NULL
+for (i in 1:n_distinct(pop_namez_sub)) {
+  X = unique(pop_namez_sub)[i]
+  tmp = rep(X,times = samp_size_sub[i])
+  tmp = as.character(tmp)
+  #Add population names metadata
+  group_dat = c(group_dat, tmp)
+  #Add unique colors if I want to plot with my own
+  color_dat = c(color_dat, rep(unique(pca_palette)[i], times = samp_size_sub[i]))
+  #The pop label toggle metadata
+  lab_YN = c(lab_YN, rep(c(1,2), times = c(1,(samp_size_sub[i]-1))))
+}
+#Remove any funny strings that are attached to the pop ID because of how genepops read them
+group_dat = gsub("\\d+","",group_dat)
+group_dat = gsub("-","",group_dat)
+#Add metadata SPECIFIC to 1710, this allows me to color things by reporting units if I choose
+up_chips = c("Chippewa_Flowage","Eau_Claire_River",
+             "Manitowish_Lake","Turtle_Flambeau_Flowage")
+up_wiscs = c("Lake_Wisconsin_","Big_Arbor_Vitae",
+             "Eau_Claire_River","Kawaguesaga",
+             "Lake_Millicent","Medicine_Lake",
+             "Sanford_Lake","Willow_Flowage",
+             "Escanaba")
+#Append the metadata to the eigenvector data
+pca_2_ggplot = cbind.data.frame(group_dat, color_dat, lab_YN, eigenvects_to_plot)
+#add reporting unit metadat for wisc chip
+pca_2_ggplot$repu = NA
+i = 1
+for (i in 1:nrow(pca_2_ggplot)) {
+  if (pca_2_ggplot[i,"group_dat"] %in% up_chips) {
+    pca_2_ggplot[i,"repu"] = "Chippewa"
+  }
+  else if(pca_2_ggplot[i,"group_dat"] %in% up_wiscs) {
+    pca_2_ggplot[i,"repu"] = "Wisconsin"
+  }
+  else{
+    pca_2_ggplot[i,"repu"] = "MN"
+  }
+}
+
+  
+####### plots by pop
+plt =  ggplot(pca_2_ggplot, aes(x = Axis1, y= Axis2, color =  "black" ))+
+    geom_point(shape = 19, size = 3, color = color_dat)+ 
+    #stat_ellipse(type = "t") +
+    theme(legend.position = "right", 
+          plot.title = element_text(size=28, hjust = 0.5),
+          axis.title = element_text(size = 18),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank()) +
+    xlab(xlabel)+
+    ylab(ylabel)+
+    ggtitle("NO TITLE YET", )+
+    geom_hline(yintercept = 0)+
+    geom_vline(xintercept = 0)
+    
+grid.arrange(plt)
+
+```
+
