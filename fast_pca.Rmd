@@ -35,39 +35,42 @@ beep()
 sleep(2)
 beep()
 
-unique(snps$pop)
+#This section will allow you to produce the list of populations that can in turn allow you to index populations below
+#Simply copy the output (exclude the first " and last ,") and set it equal to the population_list variable. 
+#To index, I typically will comment out the names I want to exclude out
+#This can easily be done by formatting the variable assignement to have one name per line. 
+#Yes this is hardcoding but populations will differ between studies so this is where you have to get your hands a little dirty and apply domain knowledge.
+auto_pop_list = NULL
+for (i in 1:n_distinct(snps$pop)) {
+  auto_pop_list = paste(auto_pop_list, "'",unique(snps$pop)[i],"'",",", sep = "")
+}
+
+```
+
+```{r}
+#This variable serves as the whitelist for indexing poplations from the genepop to analyze
 population_list = c(
-  #Toggle Wisc pops
-  "Lake_Wisconsin_48",
-  "Big_Arbor_Vitae-10-13698",
-  "Escanaba-17-02775",
-  "Kawaguesaga-11-00300",
-  "Lake_Millicent-07-00698",
-  "Medicine_Lake-17-13247",
-  "Sanford_Lake-17-02998",
-  "Willow_Flowage-11-00167",
-  ####Toggle Chip Pops
-  "Manitowish_Lake-17-10945",
-  "Eau_Claire_River-17-01449",
-  "Chippewa_Flowage-17-08347",
-  "Turtle_Flambeau_Flowage-17-08397",
-  ####Toggle Pike
-  "Pike_River-17-15524",
-  #Wolf
-  "WolfR_17-03648",
-  #Delavan
-  "Delavan_48",
-  #Toggle MN pops
-  "Cutfoot_Sioux-17-15586",
-  "Lake_Koronis-17-15556",
-  "Mille_Lacs-17-15428",
-  "Ottertail_Lake-17-15364",
-  "Pike_River-17-15524",
-  "Pine_River-17-15460",
-  "Red_Lake-17-15396",
-  "Sarah_Lake-17-15332",
-  #ST Louis
-  "St_Louis_River-17-15492"
+  'Big_Arbor_Vitae-10-13698',
+  'Chippewa_Flowage-17-08347',
+  'Cutfoot_Sioux-17-15586',
+  'Eau_Claire_River-17-01449',
+  'Escanaba-17-02775',
+  'Kawaguesaga-11-00300',
+  'Lake_Koronis-17-15556',
+  'Lake_Millicent-07-00698',
+  'Manitowish_Lake-17-10945',
+  'Medicine_Lake-17-13247',
+  'Mille_Lacs-17-15428',
+  'Ottertail_Lake-17-15364',
+  'Pike_River-17-15524',
+  'Pine_River-17-15460',
+  'Red_Lake-17-15396',
+  'Sanford_Lake-17-02998',
+  'Sarah_Lake-17-15332',
+  'St_Louis_River-17-15492',
+  'Turtle_Flambeau_Flowage-17-08397',
+  'Willow_Flowage-11-00167',
+  'WolfR_17-03648'
   )
 
 pdf(file="I:\\WAE_RAD_Data\\STACKS_publish\\phase2-pop_Gen\\SNPS\\gg_dudi_PCA_individual_pops.pdf",width = 14,height = 10)
