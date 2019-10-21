@@ -8,31 +8,23 @@ output: html_document
 ```{r}
 '%!in%' <- function(x,y)!('%in%'(x,y))
 library(readxl)
-library("tidyverse", lib.loc="~/R/win-library/3.5")
-library("dplyr", lib.loc="~/R/win-library/3.5")
-library("tictoc", lib.loc="~/R/win-library/3.5")
+library("tidyverse")
+library("dplyr")
+library("tictoc")
 library(ggplot2)
 library(egg)
-library("rubias", lib.loc="~/R/win-library/3.5")
-#Note:
-  #Specific steps were taken to get the CKMRsim package running
-  #this involved downloading from Eric's github and removing the 'read_mendel' module from every location 
-#e.g. compiler, script, etc.
-#This likely disables the ability to produce figure 4 from the paper but we just want to compare figure 3 across data sets
-library(CKMRsim)
 library(raster)
 library(reticulate)
 #beepr makes a beep when long sections are done! how fun :)
 library(beepr)
+library(adegenet)
+library(diveRsity)
+library(ggrepel)
 ```
 #------------PCA ggplot approach------------
   REMEMBER: we have to build the pca (dudi.pca()) every time we have a new subset of data to recalculate the coordinates
 ```{r}
-# snps = read.genepop("../SNPS/v6_SNPs_ALL_pops.gen", ncode = 3)
-beep()
-sleep(2)
-beep()
-sleep(2)
+snps_MAC3 = read.genepop("../whitelisted_snps_inland-GL.gen", ncode = 2)
 beep()
 
 #This section will allow you to produce the list of populations that can in turn allow you to index populations below
@@ -41,46 +33,92 @@ beep()
 #This can easily be done by formatting the variable assignement to have one name per line. 
 #Yes this is hardcoding but populations will differ between studies so this is where you have to get your hands a little dirty and apply domain knowledge.
 auto_pop_list = NULL
-for (i in 1:n_distinct(snps$pop)) {
-  auto_pop_list = paste(auto_pop_list, "'",unique(snps$pop)[i],"'",",", sep = "")
+for (i in 1:n_distinct(snps_MAC3$pop)) {
+  auto_pop_list = paste(auto_pop_list, "'",unique(snps_MAC3$pop)[i],"'",",", sep = "")
 }
 
 ```
 
+
+
 ```{r}
 #This variable serves as the whitelist for indexing poplations from the genepop to analyze
 population_list = c(
-  'Big_Arbor_Vitae-10-13698',
-  'Chippewa_Flowage-17-08347',
-  'Cutfoot_Sioux-17-15586',
-  'Eau_Claire_River-17-01449',
-  'Escanaba-17-02775',
-  'Kawaguesaga-11-00300',
+  # 'Big_Arbor_Vitae-10-13698',
+  # 'Chippewa_Flowage-17-08347',
+  'Cutfoot_Sioux-17-15588',
+  # 'Delavan-15-01449',
+  # 'Eau_Claire_River-17-01449',
+  # 'Escanaba_Lake-17-02775',
+  # 'Kawaguesaga-11-00300',
   'Lake_Koronis-17-15556',
-  'Lake_Millicent-07-00698',
-  'Manitowish_Lake-17-10945',
-  'Medicine_Lake-17-13247',
+  # 'Lake_Millicent-07-00698',
+  # 'Lake_Wisconsin-15-05298',
+  # 'Manitowish_Lake-17-10945',
+  # 'Medicine_Lake-17-13247',
   'Mille_Lacs-17-15428',
   'Ottertail_Lake-17-15364',
   'Pike_River-17-15524',
   'Pine_River-17-15460',
   'Red_Lake-17-15396',
-  'Sanford_Lake-17-02998',
-  'Sarah_Lake-17-15332',
-  'St_Louis_River-17-15492',
-  'Turtle_Flambeau_Flowage-17-08397',
-  'Willow_Flowage-11-00167',
-  'WolfR_17-03648'
+  # 'Sanford_Lake-17-02998',
+  'Sarah_Lake-17-15332'
+  # 'St_Louis_River-17-15492',
+  # 'Turtle_Flambeau_Flowage-17-08397',
+  # 'Willow_Flowage-11-00167',
+  # 'WolfR_17-03649'
+  
+  
+  # 'D_WAE_19-11826.1',
+  # 'U_WAE_19-13219.1',
+  # 'Detroit_River-18-01065',
+  # 'Grand_River-18-01013',
+  # 'Juvenile-18-01096',
+  # 'Sandusky-18-01083',
+  # 'Van_Buren-18-01078',
+  # 'West_Basin_Reefs-18-01052'
+  )
+
+population_list_full = c(
+  'Big_Arbor_Vitae-10-13698','Chippewa_Flowage-17-08347','Cutfoot_Sioux-17-15588','Delavan-15-01449',  'Eau_Claire_River-17-01449','Escanaba_Lake-17-02775','Kawaguesaga-11-00300','Lake_Koronis-17-15556','Lake_Millicent-07-00698','Lake_Wisconsin-15-05298',
+  'Manitowish_Lake-17-10945','Medicine_Lake-17-13247','Mille_Lacs-17-15428','Ottertail_Lake-17-15364','Pike_River-17-15524','Pine_River-17-15460',
+  'Red_Lake-17-15396','Sanford_Lake-17-02998','Sarah_Lake-17-15332','St_Louis_River-17-15492','Turtle_Flambeau_Flowage-17-08397','Willow_Flowage-11-00167',
+  'WolfR_17-03649','D_WAE_19-11826.1','U_WAE_19-13219.1','Detroit_River-18-01065','Grand_River-18-01013','Juvenile-18-01096','Sandusky-18-01083','Van_Buren-18-01078','West_Basin_Reefs-18-01052'
   )
 #This variable contains a custom palette of colors to use for plots. Will likely be customize to your figure.
-pca_palette = c("#00cc99","#996600","#0000FF",
-         "#FF9900","#0000FF","#ffcc00",
-         "#000000","#0000FF","#0000FF",
-         "#0000FF","#000000","#000000",
-         "#9933FF","#9933FF","#666666",
-         "#9933FF","#9933FF","#00cc99",
-         "#00cc99","#00cc99","#00cc99",
-         "#00cc99","#00cc99")
+#currently colored on a repu scale
+pca_palette = c("#0099FF",
+                "#9966FF",
+                "#00FFFF",
+                "#FF9900",
+                "#9966FF",
+                "#9966FF",
+                "#0099FF",
+                "#00CC66",
+                "#FFFF00",
+                "#0099FF",
+                "#9966FF",
+                "#0099FF",
+                "#00CC66",
+                "#00CC66",
+                "#00FFFF",
+                "#00CC66",
+                "#00FFFF",
+                "#9966FF",
+                "#00CC66",
+                "#FFCC00",
+                "#9966FF",
+                "#0099FF",
+                "#000000",
+                "#FF00FF",
+                "#FF00FF",
+                "#FF0000",
+                "#FF0000",
+                "#FF0000",
+                "#FF0000",
+                "#FF0000",
+                "#FF0000"
+                )
 ```
 #Individual PCAs for every population
 ```{r}
@@ -91,11 +129,11 @@ par(mfrow = c(1,1))
 for (Q in population_list) {
   
   
-  snps_subset = snps[which(snps$pop %in% Q)]
+  snps_MAC3_subset = snps_MAC3[which(snps_MAC3$pop %in% Q)]
   
   
-  snps_scaled = scaleGen(snps_subset,NA.method="mean")
-  pca_dat = dudi.pca(snps_scaled,cent=FALSE,scale=FALSE,scannf=FALSE,nf=4)
+  snps_MAC3_scaled = scaleGen(snps_MAC3_subset,NA.method="mean")
+  pca_dat = dudi.pca(snps_MAC3_scaled,cent=FALSE,scale=FALSE,scannf=FALSE,nf=4)
   eigenvects_to_plot=pca_dat$li
   
   variance_explained=(pca_dat$eig)/sum(pca_dat$eig)
@@ -103,12 +141,12 @@ for (Q in population_list) {
   ylabel=paste("PC2"," ",round(variance_explained[2],3)*100,"% of variance",sep="")
     
   samp_size_sub = NULL
-  for (i in unique(snps_subset@pop)) {
+  for (i in unique(snps_MAC3_subset@pop)) {
     print(i)
-    print(length(which(snps_subset@pop == i)))
-    samp_size_sub = c(samp_size_sub,length(which(snps_subset@pop == i)))
+    print(length(which(snps_MAC3_subset@pop == i)))
+    samp_size_sub = c(samp_size_sub,length(which(snps_MAC3_subset@pop == i)))
   }
-  pop_namez_sub=levels(snps_subset@pop)
+  pop_namez_sub=levels(snps_MAC3_subset@pop)
   
   
   group_dat = NULL
@@ -179,14 +217,14 @@ dev.off()
 showmekittens()
 
 ```
-
+# calculate PCA
 ```{r}
 #Use whitelist to subset populations we want to plot  
-snps_subset = snps[which(snps$pop %in% population_list)]
+snps_MAC3_subset = snps_MAC3[which(snps_MAC3$pop %in% population_list)]
 #Compute scaled allele frequencies, setting NA values equal to mean
-snps_scaled = scaleGen(snps_subset,NA.method="mean")
+snps_MAC3_scaled = scaleGen(snps_MAC3_subset,NA.method="mean")
 #Perform principal component analysis
-pca_dat = dudi.pca(snps_scaled,cent=FALSE,scale=FALSE,scannf=FALSE,nf=4)
+pca_dat = dudi.pca(snps_MAC3_scaled,cent=FALSE,scale=FALSE,scannf=FALSE,nf=4)
 #Extract eigenvectors to plot
 eigenvects_to_plot=pca_dat$li
 #Calculate % variance explained by each axis. Encapsulate these as variables to use in plot labels
@@ -195,13 +233,13 @@ xlabel=paste("PC1"," ",round(variance_explained[1],3)*100,"% of variance",sep=""
 ylabel=paste("PC2"," ",round(variance_explained[2],3)*100,"% of variance",sep="")
 #Calculate sample size for each population. 
 samp_size_sub = NULL
-for (i in unique(snps_subset@pop)) {
+for (i in unique(snps_MAC3_subset@pop)) {
   print(i)
-  print(length(which(snps_subset@pop == i)))
-  samp_size_sub = c(samp_size_sub,length(which(snps_subset@pop == i)))
+  print(length(which(snps_MAC3_subset@pop == i)))
+  samp_size_sub = c(samp_size_sub,length(which(snps_MAC3_subset@pop == i)))
 }
 #Encapsulate population names
-pop_namez_sub=levels(snps_subset@pop)
+pop_namez_sub=levels(snps_MAC3_subset@pop)
   
 #This next section builds a data frame of meta data to append to the eigenvectors for labeling purposes
 #it includes:
@@ -249,24 +287,184 @@ for (i in 1:nrow(pca_2_ggplot)) {
     pca_2_ggplot[i,"repu"] = "MN"
   }
 }
-
+```
+# ggplot
+```{r}
   
 ####### plots by pop
-plt =  ggplot(pca_2_ggplot, aes(x = Axis1, y= Axis2, color =  "black" ))+
-    geom_point(shape = 19, size = 3, color = color_dat)+ 
-    #stat_ellipse(type = "t") +
-    theme(legend.position = "right", 
+
+plt =  ggplot(pca_2_ggplot, aes(x = Axis1, y= Axis2, color =  group_dat ))+
+  geom_point(shape = 19, size = 3, alpha = 0.4)+
+  scale_color_manual(values = c(
+'#0099FF',
+'#9966FF',
+'#00FFFF',
+'#FF00FF',
+'#FF9900',
+'#FF0000',
+'#9966FF',
+'#9966FF',
+'#FF0000',
+'#FF0000',
+'#0099FF',
+'#00CC66',
+'#FFFF00',
+'#0099FF',
+'#9966FF',
+'#0099FF',
+'#00CC66',
+'#00CC66',
+'#00FFFF',
+'#00CC66',
+'#00FFFF',
+'#FF0000',
+'#9966FF',
+'#00CC66',
+'#FFCC00',
+'#9966FF',
+'#FF00FF',
+'#FF0000',
+'#FF0000',
+'#0099FF',
+'#000000'
+
+                ))+
+    # stat_ellipse(type = "t") +
+    theme(legend.title = element_blank(),
+          legend.key.size = unit(0.4, "in"),
           plot.title = element_text(size=28, hjust = 0.5),
           axis.title = element_text(size = 18),
           panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank()) +
     xlab(xlabel)+
     ylab(ylabel)+
-    ggtitle("NO TITLE YET", )+
+    ggtitle(paste("inland-GL_all_byPop", sep = ""))+
     geom_hline(yintercept = 0)+
-    geom_vline(xintercept = 0)
-    
-grid.arrange(plt)
+    geom_vline(xintercept = 0)+
+  geom_label_repel(aes(label = ifelse(lab_YN ==1, as.character(group_dat),"")),
+                  box.padding   = 0.35,
+                  point.padding = 0.5,
+                  segment.color = 'grey50')+
 
+ggsave(plt, file = "./inland-GL_all.jpg", width = 25, height = 25, dpi = 350)
+```
+
+# plotly
+```{r}
+library(plotly)
+
+plty = plot_ly(pca_2_ggplot, 
+               x = ~Axis1, 
+               y = ~Axis2, 
+               z = ~Axis3,
+               color = pca_2_ggplot$group_dat,
+        colors = pca_palette[which(population_list_full %in% population_list)]) %>% 
+  add_markers()
+plty
+# htmlwidgets::saveWidget(plty, "./test.html")
+```
+# plotly
+```{r}
+library(plotly)
+
+plty = plot_ly(pca_2_ggplot, 
+               x = ~Axis1, 
+               y = ~Axis2, 
+               z = ~Axis3,
+               color = pca_2_ggplot$group_dat,
+        colors = pca_palette[which(population_list_full %in% population_list)]) %>% 
+  add_markers()
+plty
+# htmlwidgets::saveWidget(plty, "./test.html")
+```
+
+# bscan snp pca
+```{r}
+bscan_list = read.csv("../../BayeScan/All-inland/bscan_outlier_snps_MAC3.csv")
+snp_wList = bscan_list[which(bscan_list$negLog > 2),"SNP_ID_gen"]
+
+bscan_list = read.csv("../../BayeScan/All-inland/test_FST_snps_MAC3.txt", header = F)
+snp_wList = bscan_list$V1
+
+# test_subSnp = snps_MAC3[,which(snps_MAC3$loc.fac %in% snp_wList)]
+# test_subSnp$loc.fac
+test_subSnp = snps_MAC3
+test_subSnp = test_subSnp[which(test_subSnp$pop %in% population_list)]
+unique(test_subSnp$pop)
+```
+# calculate PCA
+```{r}
+#Compute scaled allele frequencies, setting NA values equal to mean
+snps_MAC3_scaled = scaleGen(test_subSnp,NA.method="mean")
+#Perform principal component analysis
+pca_dat = dudi.pca(snps_MAC3_scaled,cent=FALSE,scale=FALSE,scannf=FALSE,nf=4)
+#Extract eigenvectors to plot
+eigenvects_to_plot=pca_dat$li
+#Calculate % variance explained by each axis. Encapsulate these as variables to use in plot labels
+variance_explained=(pca_dat$eig)/sum(pca_dat$eig)
+xlabel=paste("PC1"," ",round(variance_explained[1],3)*100,"% of variance",sep="")
+ylabel=paste("PC2"," ",round(variance_explained[2],3)*100,"% of variance",sep="")
+
+#Calculate sample size for each population. 
+samp_size_sub = NULL
+for (i in unique(test_subSnp@pop)) {
+  print(i)
+  print(length(which(test_subSnp@pop == i)))
+  samp_size_sub = c(samp_size_sub,length(which(test_subSnp@pop == i)))
+}
+#Remove any funny strings that are attached to the pop ID because of how genepops read them
+group_dat = NULL
+#Encapsulate population names
+pop_namez_sub=levels(test_subSnp@pop)
+for (i in 1:n_distinct(pop_namez_sub)) {
+  X = unique(pop_namez_sub)[i]
+  tmp = rep(X,times = samp_size_sub[i])
+  tmp = as.character(tmp)
+  #Add population names metadata
+  group_dat = c(group_dat, tmp)
+}
+group_dat = gsub("\\d+","",group_dat)
+group_dat = gsub("-","",group_dat)
+
+#Append the metadata to the eigenvector data
+pca_2_ggplot = cbind.data.frame(group_dat, eigenvects_to_plot)
+
+```
+
+```{r}
+library(plotly)
+plty = plot_ly(pca_2_ggplot, 
+               x = ~Axis1, 
+               y = ~Axis2,
+               # z = ~Axis3,
+               color = pca_2_ggplot$group_dat, 
+        colors = c(
+'#0099FF',
+'#9966FF',
+'#00FFFF',
+'#FF9900',
+'#9966FF',
+'#9966FF',
+'#0099FF',
+'#00CC66',
+'#FFFF00',
+'#0099FF',
+'#9966FF',
+'#0099FF',
+'#00CC66',
+'#00CC66',
+'#00FFFF',
+'#00CC66',
+'#00FFFF',
+'#9966FF',
+'#00CC66',
+'#FFCC00',
+'#9966FF',
+'#0099FF',
+'#000000'
+)) %>% 
+  add_markers()
+
+htmlwidgets::saveWidget(plty, "./test.html")
 ```
 
